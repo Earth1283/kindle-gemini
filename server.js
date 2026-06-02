@@ -6,7 +6,10 @@ const app = express();
 app.use(express.urlencoded({ extended: true }));
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-3.1-flash-lite' });
+const model = genAI.getGenerativeModel({
+  model: 'gemini-3.1-flash-lite',
+  systemInstruction: 'Respond in plain text only. Do not use markdown formatting — no asterisks, no headers, no bullet dashes, no backticks, no bold or italic syntax.',
+});
 
 let messages = [];
 let chat = model.startChat();
@@ -59,8 +62,10 @@ ${error ? `<p class="err"><b>Error:</b> ${escapeHtml(error)}</p>` : ''}
   <textarea name="msg" placeholder="Type your message..." required autofocus></textarea>
   <div class="btns">
     <button class="send" type="submit">Send</button>
-    <button class="clear" type="submit" formaction="/clear">Clear chat</button>
   </div>
+</form>
+<form method="POST" action="/clear" style="margin-top:6px">
+  <button class="clear" type="submit">Clear chat</button>
 </form>
 </body>
 </html>`;
