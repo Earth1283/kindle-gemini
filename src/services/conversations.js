@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const config = require('../config');
+const { log, sid } = require('../logger');
 
 const FILE = path.join(config.dataDir, 'conversations.json');
 const conversations = new Map();
@@ -43,6 +44,7 @@ function create(id = crypto.randomUUID()) {
   };
   conversations.set(id, conv);
   save();
+  log.info('session', `${sid(id)} created`, require('../logger').c.blue);
   return conv;
 }
 
@@ -51,7 +53,7 @@ const getOrCreate = (id) => get(id) || create(id);
 
 function remove(id) {
   const ok = conversations.delete(id);
-  if (ok) save();
+  if (ok) { save(); log.info('session', `${sid(id)} deleted`, require('../logger').c.red); }
   return ok;
 }
 
@@ -69,6 +71,7 @@ function clear(conv) {
   conv.totals = { prompt: 0, cached: 0, output: 0, cost: 0 };
   conv.updatedAt = Date.now();
   save();
+  log.info('session', `${sid(conv.id)} cleared`, require('../logger').c.yellow);
 }
 
 /**

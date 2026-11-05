@@ -2,13 +2,14 @@ const { GoogleGenAI, ThinkingLevel } = require('@google/genai');
 const config = require('../config');
 const store = require('./conversations');
 const { normalizeUsage, costOf } = require('./pricing');
+const { log, fmt, c, sid } = require('../logger');
 
 const ai = new GoogleGenAI({ apiKey: config.apiKey });
 
 const PLAIN_TEXT =
   'Respond in plain text only. Do not use markdown formatting unless told later in the prompt - no asterisks, no headers, no bullet dashes, no backticks, no bold or italic syntax. Your responses can be as unhinged as you want. Answer in the language of the prompt. Be funny, add jokes, swear, or even use profanity where apt. If you really feel the urge to type an emoji, draw some emojicons or ASCII art such as :)';
-const MARKDOWN = 'You may use light Markdown (lists, code blocks, bold) where it helps readability.';
-const BRIEF = 'Keep replies short and direct. Skip preamble and recap.';
+const MARKDOWN = 'You may use light Markdown (lists, code blocks, bold) where it helps readability. Your responses can be as unhigned as you want. Answer in the language of the prompt. Be funny, add jokes, swear, or even use profanity where apt.You can draw some emojicons or ASCII art such as :) if you\'d like';
+const BRIEF = 'Keep replies short and direct, witty where possible. Skip preamble and recap.';
 
 const THINKING = {
   minimal: ThinkingLevel.MINIMAL,
@@ -16,6 +17,16 @@ const THINKING = {
   medium: ThinkingLevel.MEDIUM,
   high: ThinkingLevel.HIGH,
 };
+
+/** The SDK embeds the API's JSON error in err.message; pull out the readable part. */
+function friendlyError(err) {
+  const m = /got status: (\w+)\. (\{.*\})/s.exec(err.message || '');
+  if (!m) return err;
+  try {
+    const e = JSON.parse(m[2]).error;
+    return new Error(`Gemini ${e.code} ${m[1]}: ${e.message}`);
+  } catch { return err; }
+}
 
 function systemInstruction(conv, plain) {
   return [plain ? PLAIN_TEXT : MARKDOWN, conv.settings.brief ? BRIEF : null].filter(Boolean).join(' ');
@@ -30,9 +41,14 @@ function thinkingConfig(level) {
  * `onText` receives streamed chunks. Throws (and leaves the conversation
  * unchanged) on failure or abort.
  */
-async function send(conv, text, { plain = false, onText, signal } = {}) {
+async function send(conv, text, { plain = false, onText, signal, source = 'modern' } = {}) {
   const userMsg = { role: 'user', text };
   conv.messages.push(userMsg);
+
+  const t0 = performance.now();
+  let ttft = null;
+  const turn = Math.ceil(conv.messages.length / 2);
+  log.info('chat', `${sid(conv.id)} turn ${turn}  ${c.dim(source)}  thinking=${c.bold(conv.settings.thinking)}${conv.settings.brief ? ' brief' : ''}  ${c.dim('→')} "${fmt.preview(text)}" ${c.dim(`(${fmt.n(text.length)} chars)`)}`, c.cyan);
 
   try {
     const stream = await ai.models.generateContentStream({
@@ -50,6 +66,7 @@ async function send(conv, text, { plain = false, onText, signal } = {}) {
     for await (const chunk of stream) {
       const piece = chunk.text || '';
       if (piece) {
+        if (ttft === null) ttft = performance.now() - t0;
         reply += piece;
         onText?.(piece);
       }
@@ -70,9 +87,19 @@ async function send(conv, text, { plain = false, onText, signal } = {}) {
     if (conv.title === 'New chat') conv.title = text.replace(/\s+/g, ' ').slice(0, 48);
     conv.updatedAt = Date.now();
     store.save();
+
+    const pct = usage.prompt ? Math.round((usage.cached / usage.prompt) * 100) : 0;
+    const pctColor = pct >= 50 ? c.green : pct > 0 ? c.yellow : c.red;
+    log.info('reply',
+      `${sid(conv.id)} ${c.green('✔')} in ${c.bold(fmt.n(usage.prompt))} ${c.dim(`(${pctColor(pct + '% cached')}, ${fmt.n(usage.fresh)} new)`)}  out ${c.bold(fmt.n(usage.output))}  ${c.bold(c.green(fmt.cost(cost)))}  ${c.dim(`first token ${fmt.ms(ttft ?? 0)}, total ${fmt.ms(performance.now() - t0)}`)}`,
+      c.green);
+    log.debug('totals', `${sid(conv.id)} chat total ${fmt.cost(conv.totals.cost)} over ${conv.messages.length} messages`);
     return { usage, cost };
-  } catch (err) {
+  } catch (raw) {
+    const err = friendlyError(raw);
     conv.messages.pop(); // drop the unanswered user message
+    if (signal?.aborted) log.warn('abort', `${sid(conv.id)} client stopped the reply after ${fmt.ms(performance.now() - t0)}`);
+    else log.error('error', `${sid(conv.id)} ${err.message}`);
     throw err;
   }
 }
@@ -106,12 +133,14 @@ async function compactIfNeeded(conv) {
   });
   const summary = (res.text || '').trim();
   if (!summary) return false;
+  log.info('fold', `${sid(conv.id)} compacting ${upto - conv.summarizedCount} messages (last prompt ${fmt.n(last.usage.prompt)} ≥ ${fmt.n(config.compactAtTokens)} tokens)`, c.magenta);
 
   const usage = normalizeUsage(res.usageMetadata);
   conv.totals.cost += costOf(usage, config.model);
   conv.summary = summary;
   conv.summarizedCount = upto;
   store.save();
+  log.info('fold', `${sid(conv.id)} ${c.magenta('summary')} ${fmt.n(summary.length)} chars, cost ${fmt.cost(costOf(usage, config.model))}`, c.magenta);
   return true;
 }
 

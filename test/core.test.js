@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
+process.env.LOG_LEVEL = 'silent';
 process.env.DATA_DIR = require('os').tmpdir() + '/kindle-gemini-test-' + process.pid;
 
 const { normalizeUsage, costOf } = require('../src/services/pricing');

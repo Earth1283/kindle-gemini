@@ -3,6 +3,7 @@ const store = require('../services/conversations');
 const gemini = require('../services/gemini');
 const config = require('../config');
 const { ratesFor } = require('../services/pricing');
+const { log, sid } = require('../logger');
 
 const router = express.Router();
 router.use(express.json({ limit: '200kb' }));
@@ -57,6 +58,7 @@ router.post('/conversations/:id/messages', async (req, res) => {
     const result = await gemini.send(conv, text, {
       signal: controller.signal,
       onText: (t) => emit('text', t),
+      source: 'modern',
     });
     emit('done', { ...result, title: conv.title, totals: conv.totals });
 

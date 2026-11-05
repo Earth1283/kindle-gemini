@@ -17,7 +17,7 @@ router.post('/', async (req, res) => {
   const conv = store.getOrCreate(ID);
   let error = null;
   try {
-    await gemini.send(conv, text, { plain: true });
+    await gemini.send(conv, text, { plain: true, source: 'classic' });
     await gemini.compactIfNeeded(conv).catch(() => {});
   } catch (err) {
     error = err.message;
