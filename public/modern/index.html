@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Gemini Chat</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="shell" id="shell">
+  <aside class="rail" id="rail" aria-label="Conversations">
+    <div class="rail-top">
+      <span class="brand">Gemini</span>
+      <button type="button" class="btn primary" id="new-chat">New chat</button>
+    </div>
+    <nav class="convs" id="convs"></nav>
+    <a class="rail-link" href="/">Switch to Kindle view</a>
+  </aside>
+  <div class="backdrop" id="backdrop"></div>
+
+  <main class="stage">
+    <header class="bar">
+      <button type="button" class="btn menu" id="menu" aria-label="Show conversations">Chats</button>
+      <h1 class="title" id="title">New chat</h1>
+      <p class="tally" id="tally" aria-live="polite"></p>
+      <details class="settings" id="settings">
+        <summary class="btn">Settings</summary>
+        <div class="pop">
+          <label class="field">
+            <span>Thinking</span>
+            <select id="thinking">
+              <option value="minimal">Minimal (cheapest)</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High (slowest, costs most)</option>
+            </select>
+            <small>Thinking tokens are billed like reply tokens.</small>
+          </label>
+          <label class="check">
+            <input type="checkbox" id="brief">
+            <span>Short replies<small>Fewer reply tokens. Changing this once resets the cache.</small></span>
+          </label>
+        </div>
+      </details>
+    </header>
+
+    <div class="scroll" id="scroll">
+      <div class="column" id="log"></div>
+    </div>
+
+    <form class="composer" id="form">
+      <div class="composer-in">
+        <label for="input" class="sr">Message</label>
+        <textarea id="input" rows="1" placeholder="Ask anything" autocomplete="off"></textarea>
+        <button type="submit" class="btn primary send" id="send">Send</button>
+      </div>
+    </form>
+  </main>
+</div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
