@@ -112,6 +112,9 @@ small { display: block; font-size: 0.8125rem; font-weight: 400; color: var(--ink
 .prose p, .prose ul, .prose ol, .prose pre, .prose blockquote { margin: 0 0 1em; }
 .prose h2, .prose h3, .prose h4, .prose h5 { font-family: var(--sans); font-weight: 600; line-height: 1.3; margin: 1.5em 0 0.5em; }
 .prose h2 { font-size: 1.3rem; } .prose h3 { font-size: 1.15rem; } .prose h4, .prose h5 { font-size: 1rem; }
+.prose .math { margin: 0 0 1em; overflow-x: auto; overflow-y: hidden; text-align: center; }
+.prose .math-pending, .prose .math-raw { font-family: var(--mono, monospace); font-size: 0.9em; color: var(--ink-soft); white-space: pre-wrap; }
+.prose .katex { font-size: 1.05em; }
 .prose li { margin: 0.25em 0; }
 .prose a { color: var(--accent); text-underline-offset: 2px; }
 .prose blockquote { border-left: 3px solid var(--rule); padding-left: 1rem; color: var(--ink-soft); }
