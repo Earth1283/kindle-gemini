@@ -1,25 +1,21 @@
 require('dotenv').config();
 const path = require('path');
 
-/** Accepts 'off' | 'gemini' | 'free'; 'openrouter' is the old name for 'free'. */
-function normalizeFallback(v) {
-  if (v === 'openrouter') return 'free';
-  return ['gemini', 'free'].includes(v) ? v : 'off';
+/** 'gemini' = Google Gemini direct, 'free' = OpenRouter free models. */
+function normalizeProvider(v) {
+  return v === 'free' || v === 'openrouter' ? 'free' : 'gemini';
 }
 
 module.exports = {
-  normalizeFallback,
+  normalizeProvider,
   port: Number(process.env.PORT) || 7891,
   apiKey: process.env.GEMINI_API_KEY,
   model: process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite',
-  // OpenRouter fallback, used when Google's API fails. `fallback` is the
-  // default for new chats: 'off' | 'gemini' (Gemini via OpenRouter, paid) | 'free' (zero-cost models).
+  // Which model answers. Default for new chats; changeable per chat in Settings.
+  // 'gemini' = Google Gemini 3.5 Flash-Lite, 'free' = OpenRouter free (zero cost, needs the key).
+  provider: normalizeProvider(process.env.PROVIDER),
   openrouterKey: process.env.OPENROUTER_API_KEY,
-  openrouterModels: {
-    gemini: process.env.OPENROUTER_GEMINI_MODEL || 'google/gemini-3.5-flash-lite',
-    free: process.env.OPENROUTER_FREE_MODEL || 'openrouter/free',
-  },
-  fallback: normalizeFallback(process.env.FALLBACK),
+  openrouterModel: process.env.OPENROUTER_MODEL || 'openrouter/free',
   dataDir: process.env.DATA_DIR || path.join(__dirname, '..', 'data'),
 
   // Context compaction: once the last request's prompt exceeded this many

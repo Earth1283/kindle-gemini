@@ -3,7 +3,6 @@ const config = require('../config');
 const store = require('./conversations');
 const { normalizeUsage, costOf } = require('./pricing');
 const openrouter = require('./openrouter');
-const { normalizeFallback } = config;
 const { log, fmt, c, sid } = require('../logger');
 
 const ai = new GoogleGenAI({ apiKey: config.apiKey });
@@ -30,6 +29,10 @@ function friendlyError(err) {
   } catch { return err; }
 }
 
+function providerOf(conv) {
+  return config.normalizeProvider(conv.settings.provider ?? config.provider);
+}
+
 function systemInstruction(conv, plain) {
   return [plain ? PLAIN_TEXT : MARKDOWN, conv.settings.brief ? BRIEF : null].filter(Boolean).join(' ');
 }
@@ -53,19 +56,33 @@ async function send(conv, text, { plain = false, onText, signal, source = 'moder
   log.info('chat', `${sid(conv.id)} turn ${turn}  ${c.dim(source)}  thinking=${c.bold(conv.settings.thinking)}${conv.settings.brief ? ' brief' : ''}  ${c.dim('→')} "${fmt.preview(text)}" ${c.dim(`(${fmt.n(text.length)} chars)`)}`, c.cyan);
 
   try {
+    const free = providerOf(conv) === 'free';
+    if (free && !openrouter.available()) throw new Error('OpenRouter free is selected but OPENROUTER_API_KEY is not set. Add it to .env and restart.');
+    const model = free ? config.openrouterModel : config.model;
+
     let reply = '';
     let usage;
-    let model = config.model;
-    let fallbackCost = 0;
     const onPiece = (piece) => {
       if (ttft === null) ttft = performance.now() - t0;
       reply += piece;
       onText?.(piece);
     };
 
-    try {
+    if (free) {
+      let u = { prompt: 0, output: 0 };
+      for await (const part of openrouter.stream({
+        model,
+        system: systemInstruction(conv, plain),
+        contents: store.buildContents(conv),
+        signal,
+      })) {
+        if (part.text) onPiece(part.text);
+        if (part.usage) u = part.usage;
+      }
+      usage = { prompt: u.prompt, cached: 0, fresh: u.prompt, output: u.output };
+    } else {
       const stream = await ai.models.generateContentStream({
-        model: config.model,
+        model,
         contents: store.buildContents(conv),
         config: {
           systemInstruction: systemInstruction(conv, plain),
@@ -79,36 +96,13 @@ async function send(conv, text, { plain = false, onText, signal, source = 'moder
         if (chunk.usageMetadata) meta = chunk.usageMetadata;
       }
       usage = normalizeUsage(meta);
-    } catch (raw) {
-      // Only fall back if opted in, a key exists, and nothing was shown yet.
-      const mode = normalizeFallback(conv.settings.route ?? config.fallback);
-      if (signal?.aborted || reply || mode === 'off') throw raw;
-      if (!openrouter.available()) {
-        log.warn('fallback', `${sid(conv.id)} fallback is on but OPENROUTER_API_KEY is not set (check .env and restart the server)`);
-        throw raw;
-      }
-      model = config.openrouterModels[mode];
-      fallbackCost = 0;
-      log.warn('fallback', `${sid(conv.id)} Google API failed (${friendlyError(raw).message}); trying OpenRouter ${model}`);
-      let u = { prompt: 0, output: 0, cost: 0 };
-      for await (const part of openrouter.stream({
-        model,
-        system: systemInstruction(conv, plain),
-        contents: store.buildContents(conv),
-        signal,
-      })) {
-        if (part.text) onPiece(part.text);
-        if (part.usage) u = part.usage;
-      }
-      fallbackCost = u.cost;
-      usage = { prompt: u.prompt, cached: 0, fresh: u.prompt, output: u.output };
     }
 
     if (signal?.aborted) throw new Error('aborted');
-    if (!reply.trim()) throw new Error('Gemini returned an empty reply. Try again.');
+    if (!reply.trim()) throw new Error(`${free ? 'OpenRouter' : 'Gemini'} returned an empty reply. Try again.`);
 
-    const cost = model === config.model ? costOf(usage, model) : fallbackCost;
-    conv.messages.push({ role: 'model', text: reply, usage, cost, ...(model !== config.model && { model }) });
+    const cost = free ? 0 : costOf(usage, model);
+    conv.messages.push({ role: 'model', text: reply, usage, cost, ...(free && { model }) });
 
     const t = conv.totals;
     t.prompt += usage.prompt;
@@ -153,25 +147,35 @@ async function compactIfNeeded(conv) {
     .join('\n\n');
 
   const prior = conv.summary ? `Existing summary:\n${conv.summary}\n\nNew turns to fold in:\n` : '';
-  const res = await ai.models.generateContent({
-    model: config.model,
-    contents: `${prior}${transcript}`,
-    config: {
-      systemInstruction:
-        'Condense this conversation into a compact summary that preserves facts, decisions, names, numbers, code, and open questions. Write plain prose or short lists. Do not address the reader.',
-      thinkingConfig: thinkingConfig('minimal'),
-    },
-  });
-  const summary = (res.text || '').trim();
+  const instruction =
+    'Condense this conversation into a compact summary that preserves facts, decisions, names, numbers, code, and open questions. Write plain prose or short lists. Do not address the reader.';
+  const free = providerOf(conv) === 'free' && openrouter.available();
+  let summary = '';
+  let cost = 0;
+  if (free) {
+    for await (const part of openrouter.stream({
+      model: config.openrouterModel,
+      system: instruction,
+      contents: [{ role: 'user', parts: [{ text: `${prior}${transcript}` }] }],
+    })) if (part.text) summary += part.text;
+  } else {
+    const res = await ai.models.generateContent({
+      model: config.model,
+      contents: `${prior}${transcript}`,
+      config: { systemInstruction: instruction, thinkingConfig: thinkingConfig('minimal') },
+    });
+    summary = res.text || '';
+    cost = costOf(normalizeUsage(res.usageMetadata), config.model);
+  }
+  summary = summary.trim();
   if (!summary) return false;
   log.info('fold', `${sid(conv.id)} compacting ${upto - conv.summarizedCount} messages (last prompt ${fmt.n(last.usage.prompt)} ≥ ${fmt.n(config.compactAtTokens)} tokens)`, c.magenta);
 
-  const usage = normalizeUsage(res.usageMetadata);
-  conv.totals.cost += costOf(usage, config.model);
+  conv.totals.cost += cost;
   conv.summary = summary;
   conv.summarizedCount = upto;
   store.save();
-  log.info('fold', `${sid(conv.id)} ${c.magenta('summary')} ${fmt.n(summary.length)} chars, cost ${fmt.cost(costOf(usage, config.model))}`, c.magenta);
+  log.info('fold', `${sid(conv.id)} ${c.magenta('summary')} ${fmt.n(summary.length)} chars, cost ${fmt.cost(cost)}`, c.magenta);
   return true;
 }
 

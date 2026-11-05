@@ -39,10 +39,10 @@ router.post('/conversations/:id/messages', async (req, res) => {
   if (!text) return res.status(400).json({ error: 'Message is empty.' });
   if (busy.has(conv.id)) return res.status(409).json({ error: 'Still answering the last message.' });
 
-  const { thinking, brief, fallback } = req.body.settings || {};
+  const { thinking, brief, provider } = req.body.settings || {};
   if (THINKING_LEVELS.includes(thinking)) conv.settings.thinking = thinking;
   if (typeof brief === 'boolean') conv.settings.brief = brief;
-  if (['off', 'gemini', 'free'].includes(fallback)) conv.settings.route = fallback;
+  if (['gemini', 'free'].includes(provider)) conv.settings.provider = provider;
 
   res.writeHead(200, {
     'Content-Type': 'text/event-stream; charset=utf-8',

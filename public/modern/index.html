@@ -43,13 +43,12 @@
             <small>Thinking tokens are billed like reply tokens.</small>
           </label>
           <label class="field">
-            <span>If Google's API fails</span>
-            <select id="fallback">
-              <option value="off">No fallback (show the error)</option>
-              <option value="gemini">OpenRouter: Gemini 3.5 Flash-Lite (paid)</option>
-              <option value="free">OpenRouter: free models ($0)</option>
+            <span>Model</span>
+            <select id="provider">
+              <option value="gemini">Gemini 3.5 Flash-Lite (Google)</option>
+              <option value="free">OpenRouter free ($0)</option>
             </select>
-            <small id="fallback-note">Needs OPENROUTER_API_KEY in .env.</small>
+            <small>OpenRouter needs OPENROUTER_API_KEY in .env. Thinking level only applies to Gemini.</small>
           </label>
           <label class="check">
             <input type="checkbox" id="brief">
