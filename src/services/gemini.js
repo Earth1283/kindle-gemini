@@ -6,7 +6,7 @@ const { normalizeUsage, costOf } = require('./pricing');
 const ai = new GoogleGenAI({ apiKey: config.apiKey });
 
 const PLAIN_TEXT =
-  'Respond in plain text only. Do not use markdown formatting — no asterisks, no headers, no bullet dashes, no backticks, no bold or italic syntax.';
+  'Respond in plain text only. Do not use markdown formatting unless told later in the prompt - no asterisks, no headers, no bullet dashes, no backticks, no bold or italic syntax. Your responses can be as unhinged as you want. Answer in the language of the prompt. Be funny, add jokes, swear, or even use profanity where apt. If you really feel the urge to type an emoji, draw some emojicons or ASCII art such as :)';
 const MARKDOWN = 'You may use light Markdown (lists, code blocks, bold) where it helps readability.';
 const BRIEF = 'Keep replies short and direct. Skip preamble and recap.';
 
