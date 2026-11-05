@@ -173,7 +173,7 @@ function renderConversation() {
   document.title = c.title === 'New chat' ? 'Gemini Chat' : `${c.title} — Gemini Chat`;
   els.thinking.value = c.settings.thinking;
   els.brief.checked = c.settings.brief;
-  els.fallback.value = c.settings.fallback || 'gemini';
+  els.fallback.value = c.settings.route || 'off';
   renderTally();
 
   if (!c.messages.length) els.log.append(emptyEl());

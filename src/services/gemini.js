@@ -3,6 +3,7 @@ const config = require('../config');
 const store = require('./conversations');
 const { normalizeUsage, costOf } = require('./pricing');
 const openrouter = require('./openrouter');
+const { normalizeFallback } = config;
 const { log, fmt, c, sid } = require('../logger');
 
 const ai = new GoogleGenAI({ apiKey: config.apiKey });
@@ -55,6 +56,7 @@ async function send(conv, text, { plain = false, onText, signal, source = 'moder
     let reply = '';
     let usage;
     let model = config.model;
+    let fallbackCost = 0;
     const onPiece = (piece) => {
       if (ttft === null) ttft = performance.now() - t0;
       reply += piece;
@@ -79,12 +81,18 @@ async function send(conv, text, { plain = false, onText, signal, source = 'moder
       usage = normalizeUsage(meta);
     } catch (raw) {
       // Only fall back if opted in, a key exists, and nothing was shown yet.
-      const canFall = !signal?.aborted && !reply && (conv.settings.fallback || config.fallback) === 'openrouter' && openrouter.available();
-      if (!canFall) throw raw;
-      log.warn('fallback', `${sid(conv.id)} Gemini failed (${friendlyError(raw).message}); trying OpenRouter ${config.openrouterModel}`);
-      model = config.openrouterModel;
-      let u = { prompt: 0, output: 0 };
+      const mode = normalizeFallback(conv.settings.route ?? config.fallback);
+      if (signal?.aborted || reply || mode === 'off') throw raw;
+      if (!openrouter.available()) {
+        log.warn('fallback', `${sid(conv.id)} fallback is on but OPENROUTER_API_KEY is not set (check .env and restart the server)`);
+        throw raw;
+      }
+      model = config.openrouterModels[mode];
+      fallbackCost = 0;
+      log.warn('fallback', `${sid(conv.id)} Google API failed (${friendlyError(raw).message}); trying OpenRouter ${model}`);
+      let u = { prompt: 0, output: 0, cost: 0 };
       for await (const part of openrouter.stream({
+        model,
         system: systemInstruction(conv, plain),
         contents: store.buildContents(conv),
         signal,
@@ -92,13 +100,14 @@ async function send(conv, text, { plain = false, onText, signal, source = 'moder
         if (part.text) onPiece(part.text);
         if (part.usage) u = part.usage;
       }
+      fallbackCost = u.cost;
       usage = { prompt: u.prompt, cached: 0, fresh: u.prompt, output: u.output };
     }
 
     if (signal?.aborted) throw new Error('aborted');
     if (!reply.trim()) throw new Error('Gemini returned an empty reply. Try again.');
 
-    const cost = model === config.model ? costOf(usage, model) : 0; // OpenRouter free = $0
+    const cost = model === config.model ? costOf(usage, model) : fallbackCost;
     conv.messages.push({ role: 'model', text: reply, usage, cost, ...(model !== config.model && { model }) });
 
     const t = conv.totals;

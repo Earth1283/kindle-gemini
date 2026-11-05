@@ -15,9 +15,9 @@ function toMessages(system, contents) {
 
 /**
  * Stream a reply from OpenRouter. Yields { text } chunks and a final
- * { usage } with prompt/output token counts. Free models cost $0.
+ * { usage } with prompt/output token counts. `usage.cost` is the real USD charge (0 for free models).
  */
-async function* stream({ system, contents, signal }) {
+async function* stream({ model, system, contents, signal }) {
   const res = await fetch(URL, {
     method: 'POST',
     signal,
@@ -27,7 +27,7 @@ async function* stream({ system, contents, signal }) {
       'X-Title': 'kindle-gemini',
     },
     body: JSON.stringify({
-      model: config.openrouterModel,
+      model,
       messages: toMessages(system, contents),
       stream: true,
       usage: { include: true },
@@ -54,7 +54,7 @@ async function* stream({ system, contents, signal }) {
       if (j.error) throw new Error(`OpenRouter: ${j.error.message || 'stream error'}`);
       const text = j.choices?.[0]?.delta?.content;
       if (text) yield { text };
-      if (j.usage) yield { usage: { prompt: j.usage.prompt_tokens || 0, output: j.usage.completion_tokens || 0 } };
+      if (j.usage) yield { usage: { prompt: j.usage.prompt_tokens || 0, output: j.usage.completion_tokens || 0, cost: j.usage.cost || 0 } };
     }
   }
 }

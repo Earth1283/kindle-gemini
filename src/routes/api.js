@@ -42,7 +42,7 @@ router.post('/conversations/:id/messages', async (req, res) => {
   const { thinking, brief, fallback } = req.body.settings || {};
   if (THINKING_LEVELS.includes(thinking)) conv.settings.thinking = thinking;
   if (typeof brief === 'boolean') conv.settings.brief = brief;
-  if (['gemini', 'openrouter'].includes(fallback)) conv.settings.fallback = fallback;
+  if (['off', 'gemini', 'free'].includes(fallback)) conv.settings.route = fallback;
 
   res.writeHead(200, {
     'Content-Type': 'text/event-stream; charset=utf-8',

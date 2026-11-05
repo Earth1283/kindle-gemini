@@ -36,7 +36,7 @@ function create(id = crypto.randomUUID()) {
     title: 'New chat',
     createdAt: now,
     updatedAt: now,
-    settings: { thinking: 'minimal', brief: false, fallback: config.fallback },
+    settings: { thinking: 'minimal', brief: false, route: config.fallback },
     messages: [],        // { role: 'user'|'model', text, usage?, cost? }
     summary: null,       // text standing in for messages[0..summarizedCount)
     summarizedCount: 0,
