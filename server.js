@@ -7,7 +7,7 @@ app.use(express.urlencoded({ extended: true }));
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({
-  model: 'gemini-3.1-flash-lite',
+  model: 'gemini-3.5-flash-lite',
   systemInstruction: 'Respond in plain text only. Do not use markdown formatting — no asterisks, no headers, no bullet dashes, no backticks, no bold or italic syntax.',
 });
 
