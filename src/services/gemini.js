@@ -9,7 +9,7 @@ const ai = new GoogleGenAI({ apiKey: config.apiKey });
 const PLAIN_TEXT =
   'Respond in plain text only. Do not use markdown formatting unless told later in the prompt - no asterisks, no headers, no bullet dashes, no backticks, no bold or italic syntax. Your responses can be as unhinged as you want. Answer in the language of the prompt. Be funny, add jokes, swear, or even use profanity where apt. If you really feel the urge to type an emoji, draw some emojicons or ASCII art such as :)';
 const MARKDOWN = 'You may use light Markdown (lists, code blocks, bold) where it helps readability. Your responses can be as unhigned as you want. Answer in the language of the prompt. Be funny, add jokes, swear, or even use profanity where apt.You can draw some emojicons or ASCII art such as :) if you\'d like';
-const BRIEF = 'Keep replies short and direct, witty where possible. Skip preamble and recap.';
+const BRIEF = 'Keep replies short and direct. Skip preamble and recap.';
 
 const THINKING = {
   minimal: ThinkingLevel.MINIMAL,
