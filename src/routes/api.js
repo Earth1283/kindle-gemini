@@ -12,7 +12,7 @@ const THINKING_LEVELS = ['minimal', 'low', 'medium', 'high'];
 const busy = new Set(); // conversation ids with a request in flight
 
 router.get('/meta', (req, res) => {
-  res.json({ model: config.model, rates: ratesFor(config.model), compactAtTokens: config.compactAtTokens });
+  res.json({ model: config.model, rates: ratesFor(config.model), compactAtTokens: config.compactAtTokens, openrouter: Boolean(config.openrouterKey) });
 });
 
 router.get('/conversations', (req, res) => res.json(store.list()));
@@ -39,9 +39,10 @@ router.post('/conversations/:id/messages', async (req, res) => {
   if (!text) return res.status(400).json({ error: 'Message is empty.' });
   if (busy.has(conv.id)) return res.status(409).json({ error: 'Still answering the last message.' });
 
-  const { thinking, brief } = req.body.settings || {};
+  const { thinking, brief, fallback } = req.body.settings || {};
   if (THINKING_LEVELS.includes(thinking)) conv.settings.thinking = thinking;
   if (typeof brief === 'boolean') conv.settings.brief = brief;
+  if (['gemini', 'openrouter'].includes(fallback)) conv.settings.fallback = fallback;
 
   res.writeHead(200, {
     'Content-Type': 'text/event-stream; charset=utf-8',

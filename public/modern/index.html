@@ -42,6 +42,14 @@
             </select>
             <small>Thinking tokens are billed like reply tokens.</small>
           </label>
+          <label class="field">
+            <span>If Gemini fails</span>
+            <select id="fallback">
+              <option value="gemini">Keep using Gemini 3.5 Flash-Lite</option>
+              <option value="openrouter">Fall back to OpenRouter free ($0)</option>
+            </select>
+            <small id="fallback-note">Needs OPENROUTER_API_KEY in .env.</small>
+          </label>
           <label class="check">
             <input type="checkbox" id="brief">
             <span>Short replies<small>Fewer reply tokens. Changing this once resets the cache.</small></span>

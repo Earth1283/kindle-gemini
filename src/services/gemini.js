@@ -2,6 +2,7 @@ const { GoogleGenAI, ThinkingLevel } = require('@google/genai');
 const config = require('../config');
 const store = require('./conversations');
 const { normalizeUsage, costOf } = require('./pricing');
+const openrouter = require('./openrouter');
 const { log, fmt, c, sid } = require('../logger');
 
 const ai = new GoogleGenAI({ apiKey: config.apiKey });
@@ -51,33 +52,54 @@ async function send(conv, text, { plain = false, onText, signal, source = 'moder
   log.info('chat', `${sid(conv.id)} turn ${turn}  ${c.dim(source)}  thinking=${c.bold(conv.settings.thinking)}${conv.settings.brief ? ' brief' : ''}  ${c.dim('→')} "${fmt.preview(text)}" ${c.dim(`(${fmt.n(text.length)} chars)`)}`, c.cyan);
 
   try {
-    const stream = await ai.models.generateContentStream({
-      model: config.model,
-      contents: store.buildContents(conv),
-      config: {
-        systemInstruction: systemInstruction(conv, plain),
-        thinkingConfig: thinkingConfig(conv.settings.thinking),
-        abortSignal: signal,
-      },
-    });
-
     let reply = '';
-    let meta;
-    for await (const chunk of stream) {
-      const piece = chunk.text || '';
-      if (piece) {
-        if (ttft === null) ttft = performance.now() - t0;
-        reply += piece;
-        onText?.(piece);
+    let usage;
+    let model = config.model;
+    const onPiece = (piece) => {
+      if (ttft === null) ttft = performance.now() - t0;
+      reply += piece;
+      onText?.(piece);
+    };
+
+    try {
+      const stream = await ai.models.generateContentStream({
+        model: config.model,
+        contents: store.buildContents(conv),
+        config: {
+          systemInstruction: systemInstruction(conv, plain),
+          thinkingConfig: thinkingConfig(conv.settings.thinking),
+          abortSignal: signal,
+        },
+      });
+      let meta;
+      for await (const chunk of stream) {
+        if (chunk.text) onPiece(chunk.text);
+        if (chunk.usageMetadata) meta = chunk.usageMetadata;
       }
-      if (chunk.usageMetadata) meta = chunk.usageMetadata;
+      usage = normalizeUsage(meta);
+    } catch (raw) {
+      // Only fall back if opted in, a key exists, and nothing was shown yet.
+      const canFall = !signal?.aborted && !reply && (conv.settings.fallback || config.fallback) === 'openrouter' && openrouter.available();
+      if (!canFall) throw raw;
+      log.warn('fallback', `${sid(conv.id)} Gemini failed (${friendlyError(raw).message}); trying OpenRouter ${config.openrouterModel}`);
+      model = config.openrouterModel;
+      let u = { prompt: 0, output: 0 };
+      for await (const part of openrouter.stream({
+        system: systemInstruction(conv, plain),
+        contents: store.buildContents(conv),
+        signal,
+      })) {
+        if (part.text) onPiece(part.text);
+        if (part.usage) u = part.usage;
+      }
+      usage = { prompt: u.prompt, cached: 0, fresh: u.prompt, output: u.output };
     }
+
     if (signal?.aborted) throw new Error('aborted');
     if (!reply.trim()) throw new Error('Gemini returned an empty reply. Try again.');
 
-    const usage = normalizeUsage(meta);
-    const cost = costOf(usage, config.model);
-    conv.messages.push({ role: 'model', text: reply, usage, cost });
+    const cost = model === config.model ? costOf(usage, model) : 0; // OpenRouter free = $0
+    conv.messages.push({ role: 'model', text: reply, usage, cost, ...(model !== config.model && { model }) });
 
     const t = conv.totals;
     t.prompt += usage.prompt;

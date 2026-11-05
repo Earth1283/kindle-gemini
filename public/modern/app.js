@@ -4,7 +4,7 @@ const $ = (id) => document.getElementById(id);
 const els = {
   shell: $('shell'), convs: $('convs'), log: $('log'), scroll: $('scroll'), title: $('title'),
   tally: $('tally'), form: $('form'), input: $('input'), send: $('send'),
-  thinking: $('thinking'), brief: $('brief'), settings: $('settings'),
+  thinking: $('thinking'), fallback: $('fallback'), brief: $('brief'), settings: $('settings'),
 };
 
 const state = { list: [], conv: null, controller: null };
@@ -173,6 +173,7 @@ function renderConversation() {
   document.title = c.title === 'New chat' ? 'Gemini Chat' : `${c.title} — Gemini Chat`;
   els.thinking.value = c.settings.thinking;
   els.brief.checked = c.settings.brief;
+  els.fallback.value = c.settings.fallback || 'gemini';
   renderTally();
 
   if (!c.messages.length) els.log.append(emptyEl());
@@ -276,7 +277,7 @@ async function sendMessage(text) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal: state.controller.signal,
-      body: JSON.stringify({ text, settings: { thinking: els.thinking.value, brief: els.brief.checked } }),
+      body: JSON.stringify({ text, settings: { thinking: els.thinking.value, brief: els.brief.checked, fallback: els.fallback.value } }),
     });
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Request failed (${res.status})`);
 
